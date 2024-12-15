@@ -1,0 +1,178 @@
+# Version and name top-level
+# name digunakan untuk memberikan nama pada project Docker Compose. 
+# Dalam project ini, nama project adalah kelas-h-rifat
+name: kelas-h-rifat
+
+# Services top-level
+# mendefinisikan servis-servis yang akan dijalankan dalam project Docker Compose.
+# terdapat dua servis yang didefinisikan dalam project ini yaitu: pgadmin dan postgres
+services:
+  # PgAdmin service (Web Interface)
+  pgadmin:
+    # menentukan image Docker yang akan digunakan untuk menjalankan servis
+    # disini saya menggunakan image resmi pgAdmin4 yang disediakan oleh dev pgAdmin.
+    # Dengan menggunakan tag latest, Docker Compose akan mengunduh versi terbaru dari image tersebut saat pertama kali dijalankan.
+    image: dpage/pgadmin4:latest
+
+    # Pemberian nama kontainer memudahkan dalam mengidentifikasi 
+    # dan berinteraksi dengan kontainer tersebut saat menjalankan perintah Docker.
+    container_name: pgadmin4
+
+    # mengonfigurasi pengaturan spesifik dalam aplikasi pgAdmin.
+    # terdapat dua variabel yang didefinisikan;
+    environment:
+    # Menentukan alamat email default untuk login ke pgAdmin.
+      PGADMIN_DEFAULT_EMAIL: rifat@example.com
+    # Menentukan kata sandi default untuk login ke pgAdmin.
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    # Dengan mendefinisikan kredensial(informasi autentikasi yang digunakan untuk mengakses aplikasi pgAdmin) ini melalui environment variabel,
+    # pengguna dapat langsung mengakses pgAdmin menggunakan email rifat@example.com 
+    # dan kata sandi admin123 tanpa perlu melakukan konfigurasi tambahan.
+
+    # Komponen ports digunakan untuk memetakan port dari kontainer ke host.
+    # Pemetaan port ini berarti port 80 pada kontainer pgadmin akan dipetakan ke port 5050 pada host yang akan digunakan untuk mengakses aplikasi yang berjalan di dalam kontainer.
+    # sehingga dapat mengakses antarmuka web pgAdmin melalui http://localhost:5050 pada host.
+    ports:
+      - "5050:80"
+
+    # Komponen networks digunakan untuk menghubungkan servis pgadmin ke jaringan yang telah didefinisikan dalam file Docker Compose.
+    # servis pgadmin dihubungkan ke jaringan pg_network
+    # sehingga memungkinkan komunikasi antara servis pgadmin dan servis lainnya yang terhubung ke jaringan yang sama.
+    networks:
+      - pg_network
+
+    # Komponen volumes digunakan untuk menghubungkan volume ke servis pgadmin untuk penyimpanan data.
+    volumes:
+      # volume pgadmin_data di-mount(menghubungkan sebuah direktori dari sistem host ke dalam kontainer) ke direktori /var/lib/pgadmin di dalam kontainer pgadmin.
+      # sehingga aplikasi yang berjalan di dalam kontainer dapat mengakses dan memodifikasi data di volume tersebut.
+      - pgadmin_data:/var/lib/pgadmin
+      # Volume ini memastikan bahwa data pgAdmin, 
+      # seperti konfigurasi dan file-file yang dibuat oleh pengguna, 
+      # akan tetap persisten(mekanisme untuk menyimpan data secara permanen di luar kontainer) meskipun kontainer dihentikan atau dihapus.
+
+
+    # Komponen deploy digunakan untuk mengatur pengaturan deployment servis pgadmin.
+    deploy:
+      # Mengatur batasan sumber daya yang dialokasikan untuk servis pgadmin.
+      # Ada dua jenis batasan sumber daya yang dapat ditentukan:
+      resources:
+        # Menentukan batas maksimum sumber daya yang dapat digunakan oleh servis.
+        limits:
+          # Membatasi penggunaan CPU maksimum sebesar 0.5 cores.
+          # Nilai 0.5 berarti servis dapat menggunakan hingga setengah dari satu core CPU. 
+          # Misalnya, jika sistem memiliki CPU quad-core, servis pgadmin akan dibatasi untuk menggunakan maksimum dua core.
+          cpus: '0.5'
+          # Membatasi penggunaan memori maksimum sebesar 1 GB.
+          memory: '1G'
+        # Menentukan sumber daya yang dijamin tersedia untuk servis.
+        reservations:
+          # Menjamin alokasi CPU sebesar 0.25 cores.
+          # Ini memastikan bahwa servis akan selalu memiliki akses ke setidaknya seperempat dari satu core CPU, 
+          # bahkan ketika sistem sedang sibuk atau sumber daya terbatas.
+          cpus: '0.25'
+          # Menjamin alokasi memori sebesar 512 MB.
+          # servis akan selalu memiliki akses ke setidaknya 512 MB memori, terlepas dari kondisi sistem.
+          memory: 512M
+    # Pengaturan deploy ini memastikan bahwa servis pgadmin berjalan dengan batasan sumber daya yang sesuai 
+    # dan tidak menghabiskan sumber daya sistem secara berlebihan.
+
+    # Komponen configs digunakan untuk menghubungkan konfigurasi eksternal ke servis pgadmin.
+    configs:
+        # nilai source adalah pgadmin_config, yang merujuk pada file konfigurasi yang didefinisikan pada level top-level configs dalam file Docker Compose.
+      - source: pgadmin_config 
+        # nilai target adalah /pgadmin4/config_local.py, yang berarti file konfigurasi akan ditempatkan pada path /pgadmin4/config_local.py di dalam kontainer pgadmin.
+        target: /pgadmin4/config_local.py
+              #/etc/pgadmin4/pgadmin.conf
+        # sehingga mudah mengubah pengaturan pgAdmin tanpa harus memodifikasi image Docker secara langsung.
+    # Komponen depends_on digunakan untuk menentukan dependensi antar servis.
+    depends_on:
+      # servis pgadmin memiliki dependensi pada servis postgres.
+      - postgres
+      # Dependensi ini memastikan bahwa servis postgres sudah selesai di eksekusi dan selesai sebelum servis pgadmin diakses.
+    # unless-stopped, servis pgadmin akan selalu dijaga tetap berjalan kecuali dihentikan secara manual.
+    restart: unless-stopped
+    # Jika servis pgadmin berhenti karena kesalahan atau kegagalan, Docker Compose akan secara otomatis merestart servis tersebut.
+
+  # PostgreSQL service (Database)
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: postgrespass
+      POSTGRES_DB: rifatdb
+    ports:
+      - "5432:5432"
+    networks:
+      - pg_network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    configs:
+      - source: postgres_config
+        target: /etc/postgresql/postgresql.conf
+    restart: unless-stopped
+
+# Networks top-level
+# Komponen networks digunakan untuk mendefinisikan jaringan yang akan digunakan oleh kontainer-kontainer dalam aplikasi.
+networks:
+  # jaringan yang didefinisikan adalah pg_network.
+  pg_network:
+    # bridge, driver jaringan default yang digunakan oleh Docker. Driver ini membuat jaringan lokal yang terisolasi di dalam host Docker, 
+    # memungkinkan kontainer untuk saling berkomunikasi menggunakan alamat IP yang dialokasikan secara otomatis.
+    # Kontainer yang terhubung ke jaringan bridge dapat berkomunikasi satu sama lain, tetapi secara default terisolasi dari jaringan eksternal.
+    driver: bridge
+    # Atribut driver_opts digunakan untuk memberikan opsi konfigurasi spesifik untuk driver jaringan. 
+    driver_opts:
+      # opsi com.docker.network.enable_ipv6 diatur ke "false" untuk menonaktifkan dukungan IPv6 pada jaringan.
+      # jaringan hanya akan menggunakan alamat IPv4 sehingga menjaga kompatibilitas dan kesederhanaan jaringan.
+      com.docker.network.enable_ipv6: "false"
+    # Atribut ipam (IP Address Management) digunakan untuk mengonfigurasi pengalokasian alamat IP pada jaringan. 
+    ipam:
+    # driver IPAM yang digunakan adalah default, yang merupakan driver bawaan Docker untuk mengalokasikan alamat IP secara otomatis.
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+        # Nilai ini ditetapkan pada atribut subnet dalam konfigurasi ipam. 
+        # Ini adalah notasi CIDR (Classless Inter-Domain Routing) yang menentukan rentang alamat IP yang akan dialokasikan untuk jaringan pg_network.
+        # jaringan akan menggunakan alamat IP dalam rentang 172.20.0.1 hingga 172.20.255.254
+        # sehingga memberikan ruang yang cukup untuk pengalamatan kontainer dalam jaringan.
+
+
+# Volumes top-level
+# Komponen volumes digunakan untuk mendefinisikan volume yang akan digunakan untuk menyimpan data persisten.
+# ada dua volume yang didefinisikan: postgres_data dan pgadmin_data.
+volumes:
+# Atribut driver untuk menentukan driver volume yang digunakan. Nilai local menunjukkan bahwa volume ini menggunakan driver lokal, 
+# yang berarti data akan disimpan pada sistem file host Docker.
+  # menyimpan data persisten dari kontainer PostgreSQL
+  postgres_data:
+    driver: local
+  # menyimpan data persisten dari kontainer pgAdmin.
+  pgadmin_data:
+    driver: local
+
+
+# Configs top-level
+# Komponen configs digunakan untuk mendefinisikan konfigurasi eksternal yang akan digunakan oleh kontainer-kontainer dalam aplikasi.
+# ada dua konfigurasi yang didefinisikan: postgres_config dan pgadmin_config.
+configs:
+# Atribut file digunakan untuk menentukan lokasi file konfigurasi pada sistem host. 
+  postgres_config:
+    # Nilai ./postgres.conf menunjukkan bahwa file konfigurasi PostgreSQL berada dalam direktori yang sama dengan file Docker Compose.
+    # File konfigurasi postgres.conf akan digunakan untuk memberikan pengaturan kustom untuk kontainer PostgreSQL.
+    file: ./postgres.conf
+  pgadmin_config:
+    # nilai ./pgadmin.conf menunjukkan bahwa file konfigurasi pgAdmin juga berada dalam direktori yang sama.
+    # file konfigurasi pgadmin.conf akan digunakan untuk memberikan pengaturan kustom untuk kontainer pgAdmin.
+    file: ./pgadmin.conf
+# Penggunaan file konfigurasi eksternal memungkinkan pemisahan antara konfigurasi dan definisi layanan,
+# (file Docker Compose yang mendefinisikan kontainer-kontainer (services) yang akan dijalankan dalam aplikasi) 
+# sehingga memudahkan pengelolaan dan pembaruan konfigurasi tanpa perlu mengubah definisi layanan secara langsung.
